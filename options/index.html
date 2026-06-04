@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AriaNG Integration</title>
+    <link href="style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">AriaNG Integration</p>
+        <h1>Intercept browser downloads and forward them to aria2.</h1>
+        <p class="lede">Set the local RPC endpoint, choose whether interception is active, and save the settings. The background page will start routing matching downloads to aria2 immediately after you save.</p>
+      </section>
+
+      <form id="settingsForm" class="card">
+        <div class="grid">
+          <label class="row span-2">
+            <span>Enable interception</span>
+            <input id="enabled" type="checkbox" />
+          </label>
+
+          <label>
+            <span>Protocol</span>
+            <select id="protocol">
+              <option value="ws">ws</option>
+              <option value="wss">wss</option>
+              <option value="http">http</option>
+              <option value="https">https</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Host</span>
+            <input id="host" type="text" placeholder="127.0.0.1" />
+          </label>
+
+          <label>
+            <span>Port</span>
+            <input id="port" type="text" placeholder="6800" />
+          </label>
+
+          <label>
+            <span>Interface</span>
+            <input id="path" type="text" placeholder="jsonrpc" />
+          </label>
+
+          <label>
+            <span>Token</span>
+            <input id="token" type="text" placeholder="optional" />
+          </label>
+
+          <label class="span-2">
+            <span>Default download folder</span>
+            <input id="defaultDir" type="text" placeholder="optional" />
+          </label>
+
+          <label class="row">
+            <span>Include User-Agent header</span>
+            <input id="useUserAgent" type="checkbox" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="saveButton" type="submit">Save</button>
+          <button id="checkRpc" type="button">Check RPC</button>
+          <span id="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>
