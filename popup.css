@@ -1,7 +1,120 @@
-body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#fff;color:#111}
-.root{width:300px;padding:12px}
-h3{margin:0 0 8px;font-size:16px}
-.row{display:flex;align-items:center;gap:8px;margin:10px 0}
-.actions{display:flex;gap:8px;margin-top:8px}
-button{flex:1;padding:8px;border-radius:6px;border:0;background:#1e90ff;color:#fff}
-.status{margin-top:8px;color:#666;font-size:13px}
+:root {
+  --bg-color: #ffffff;
+  --text-color: #111111;
+  --text-muted: #666666;
+
+  /* Accent Interactive Tokens */
+  --accent-color: #0060df; /* Firefox Standard Blue */
+  --accent-hover: #004094;
+  --accent-text: #ffffff;
+
+  /* Input/Structural Tokens */
+  --border-color: #cccccc;
+  --row-hover: #f0f0f4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #1c1b22; /* Official Firefox Proton Dark Background */
+    --text-color: #fbfbfe; /* High-contrast crisp white text */
+    --text-muted: #959597; /* Accessible muted gray */
+
+    /* Dark Theme Accent Tokens */
+    --accent-color: #00ddff; /* Bright Proton Cyan for optimal contrast on dark surfaces */
+    --accent-hover: #00b4d4;
+    --accent-text: #000000; /* Dark text on light accent for readability */
+
+    --border-color: #52525e;
+    --row-hover: #2b2a33; /* Highlight row on hover in dark mode */
+  }
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.root {
+  width: 300px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.row:hover {
+  background-color: var(--row-hover);
+}
+
+.row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 500;
+  background-color: var(--accent-color);
+  color: var(--accent-text);
+  cursor: pointer;
+  transition:
+    background-color 0.1s ease,
+    transform 0.05s ease;
+}
+
+button:hover {
+  background-color: var(--accent-hover);
+}
+
+button:active {
+  transform: scale(0.98); /* Tactile feedback on click */
+}
+
+.status {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 18px;
+  font-style: italic;
+}

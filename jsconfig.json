@@ -1,0 +1,12 @@
+{
+  "typeAcquisition": {
+    "include": ["webextensions-browser"]
+  },
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "allowJs": true,
+    "checkJs": false
+  },
+  "exclude": ["node_modules"]
+}

@@ -1,34 +1,41 @@
 {
-	"manifest_version": 2,
-	"name": "AriaNG_Integration",
-	"description": "Replaces your downloader and download manager with aria2c (not included) and ariaNG",
-	"version": "0.0.1",
-	"icons": {
-		"64": "icons/icon.png"
-	},
-	"browser_action": {
-		"default_title": "AriaNG Integration",
-		"default_icon": {
-			"64": "icons/icon.png"
-		}
-		,"default_popup": "popup.html"
-	},
-	"permissions": [
-		"storage",
-		"tabs",
-		"notifications",
-		"webRequest",
-		"webRequestBlocking",
-		"cookies",
-		"<all_urls>"
-	],
-	"background": {
-		"scripts": [
-			"background_script.js"
-		]
-	},
-	"options_ui": {
-		"page": "options/index.html",
-		"open_in_tab": true
-	}
+  "manifest_version": 2,
+  "name": "AriaNG Integration",
+  "description": "Replaces your downloader and download manager with aria2c and a bundled AriaNg panel.",
+  "version": "1.0.0",
+  "icons": {
+    "64": "icons/icon.png"
+  },
+  "browser_action": {
+    "default_title": "AriaNG Integration",
+    "default_icon": {
+      "64": "icons/icon.png"
+    },
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "notifications",
+    "webRequest",
+    "webRequestBlocking",
+    "cookies",
+    "contextMenus",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background_script.js"],
+    "persistent": true
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{6b19f380-d1ce-498a-bf72-44db01364961}",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "optional": ["technicalAndInteraction"]
+      },
+      "strict_min_version": "140.0"
+    }
+  },
+  "content_security_policy": "script-src 'self'; object-src 'self'; connect-src http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https: wss:"
 }

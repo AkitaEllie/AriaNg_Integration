@@ -1,21 +1,23 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AriaNG</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <div class="root">
-    <h3>AriaNG Integration</h3>
-    <label class="row"><input id="enabled" type="checkbox"> Enable interception</label>
-    <div class="actions">
-      <button id="openOptions">Open Options</button>
-      <button id="openDetails">Open Details</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AriaNG</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="root">
+      <h3>Aria2c Integration</h3>
+      <label class="row"><input id="enabled" type="checkbox" /> Enable</label>
+      <label class="row"
+        ><input id="contextMenu" type="checkbox" /> Show Context Menu</label
+      >
+      <div class="actions">
+        <button id="openDetails">Open Details</button>
+      </div>
+      <div id="status" class="status"></div>
     </div>
-    <div id="status" class="status"></div>
-  </div>
-  <script src="popup.js"></script>
-</body>
+    <script src="popup.js"></script>
+  </body>
 </html>

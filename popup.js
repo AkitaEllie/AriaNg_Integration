@@ -1,46 +1,76 @@
-'use strict';
+"use strict";
 
-function $(sel){return document.querySelector(sel)}
-
-async function readSettings(){
-  const s = await browser.storage.local.get({enabled:false});
-  return s;
+function $(sel) {
+  return document.querySelector(sel);
 }
 
-async function writeSettings(obj){
-  // ensure initialize is set so background attaches listeners when enabling
+async function readSettings() {
+  return await browser.storage.local.get({
+    enabled: false,
+  });
+}
+
+async function writeSettings(obj) {
   if (obj.enabled === true) obj.initialize = true;
   return browser.storage.local.set(obj);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const enabledEl = $('#enabled');
-  const openOptions = $('#openOptions');
-  const openDetails = $('#openDetails');
-  const status = $('#status');
+document.addEventListener("DOMContentLoaded", () => {
+  const enabledEl = $("#enabled");
+  const openDetails = $("#openDetails");
+  const openOptions = $("#openOptions");
+  const status = $("#status");
+  const soundEnabledEl = $("#soundEnabled");
+  const customSoundBtn = $("#customSoundBtn");
+  const soundFileEl = $("#soundFile");
+  readSettings()
+    .then((s) => {
+      enabledEl.checked = Boolean(s.enabled);
+      contextMenuEl.checked = Boolean(s.contextMenu);
+    })
+    .catch((err) => {
+      console.error("Failed to read settings on popup launch:", err);
+    });
 
-  const s = await readSettings();
-  enabledEl.checked = Boolean(s.enabled);
+  let statusTimer = null;
 
-  enabledEl.addEventListener('change', async (e) => {
-    const on = e.target.checked;
+  async function saveSetting(partial, message) {
     try {
-      await writeSettings({enabled: on});
-      status.textContent = on ? 'Interception enabled' : 'Interception disabled';
+      await writeSettings(partial);
+      status.textContent = message;
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+      }
+      statusTimer = setTimeout(() => {
+        status.textContent = "";
+        statusTimer = null;
+      }, 1600);
     } catch (err) {
-      status.textContent = 'Error saving setting';
+      status.textContent = "Error saving setting";
     }
-    setTimeout(()=> status.textContent='', 1600);
+  }
+  enabledEl.addEventListener("change", (e) => {
+    const on = e.target.checked;
+    saveSetting(
+      { enabled: on },
+      on ? "Interception enabled" : "Interception disabled",
+    );
   });
 
-  openOptions.addEventListener('click', () => {
-    browser.runtime.openOptionsPage();
-    window.close();
+  const contextMenuEl = $("#contextMenu");
+  contextMenuEl.addEventListener("change", (e) => {
+    const on = e.target.checked;
+    saveSetting(
+      { contextMenu: on },
+      on ? "Context menu enabled" : "Context menu disabled",
+    );
   });
 
-  openDetails.addEventListener('click', () => {
-    // open stub details page in a new tab
-    browser.tabs.create({url: browser.runtime.getURL('details.html')});
-    window.close();
+  openDetails.addEventListener("click", () => {
+    browser.tabs.create({ url: browser.runtime.getURL("ariang/index.html") });
+  });
+
+  openOptions.addEventListener("click", () => {
+    browser.tabs.create({ url: browser.runtime.getURL("options/index.html") });
   });
 });
