@@ -17,6 +17,21 @@
         <button id="openDetails">Open Details</button>
       </div>
       <div id="status" class="status"></div>
+      <div id="downloadStats" class="download-stats" hidden>
+        <div class="stats-header">
+          <span id="statFileName" class="stats-filename">—</span>
+          <button id="dismissStats" class="stats-dismiss" title="Dismiss">×</button>
+        </div>
+        <div class="stats-row">
+          <span class="stats-label">Speed</span>
+          <span id="statSpeed" class="stats-value">—</span>
+        </div>
+        <div class="stats-row">
+          <span class="stats-label">Progress</span>
+          <span id="statProgress" class="stats-value">—</span>
+        </div>
+        <div class="stats-bar"><div id="statBarFill" class="stats-bar-fill"></div></div>
+      </div>
     </div>
     <script src="popup.js"></script>
   </body>

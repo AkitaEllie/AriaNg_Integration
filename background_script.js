@@ -1,20 +1,22 @@
 "use strict";
 
-const ICON_URL = browser.runtime.getURL("icons/icon.png");
+const ICONS = {
+  off: "icons/icon_off.svg",
+  idle: "icons/icon_idle.svg",
+  active: "icons/icon_active.svg",
+  error: "icons/icon_err.svg",
+};
+
+let currentIcon = null;
+let extensionError = false;
 
 const DEFAULT_SETTINGS = {
   initialize: false,
   contextMenu: true,
-  aggressive: false,
   enabled: false,
-  protocol: "ws",
-  host: "127.0.0.1",
-  port: "6800",
-  path: "jsonrpc",
-  token: "",
 };
 
-let currentSettings = { ...DEFAULT_SETTINGS };
+let currentSettings = null;
 let listenersAttached = false;
 let badgeIntervalId = null;
 
@@ -28,6 +30,8 @@ let rpcSocketReady = null;
 let rpcReconnectTimer = null;
 let rpcRequestCounter = 0;
 let currentRpcSettings = null;
+let lastDownloadStats = null;
+let lastCompletedDownload = null;
 
 /**
  * Triggers a native system alert notification banner.
@@ -36,7 +40,7 @@ function notify(title, message) {
   return browser.notifications
     .create({
       type: "basic",
-      iconUrl: ICON_URL,
+      iconUrl: ICONS.idle,
       title: title,
       message: String(message),
     })
@@ -44,11 +48,35 @@ function notify(title, message) {
 }
 
 /**
- * Reads core extension preferences from storage.
+ * Updates the toolbar icon based on the current extension state.
+ * States: off (disabled), idle (enabled, no downloads), active (downloading), error (RPC/extension error).
+ */
+function updateIcon(state) {
+  const icon = ICONS[state];
+  if (!icon || icon === currentIcon) return;
+  currentIcon = icon;
+  browser.browserAction.setIcon({ path: icon }).catch(() => {});
+}
+
+/**
+ * Reads extension preferences from storage into the local cache.
+ * Returns the cached settings object.
  */
 function readSettings() {
   return browser.storage.local.get(DEFAULT_SETTINGS).then((stored) => {
     currentSettings = { ...DEFAULT_SETTINGS, ...stored };
+    return currentSettings;
+  });
+}
+
+/**
+ * Persists settings to extension storage and updates the local cache.
+ * Partial updates are merged with the current cached values.
+ */
+function saveSettings(partial) {
+  const updated = { ...currentSettings, ...partial };
+  return browser.storage.local.set(updated).then(() => {
+    currentSettings = updated;
     return currentSettings;
   });
 }
@@ -244,17 +272,11 @@ function buildRpcUrl() {
   );
 }
 
-function buildPayload(url, fileName, headers) {
+function buildAria2Options(fileName, headers) {
   const options = { "parameterized-uri": "false" };
   if (fileName) options.out = fileName;
   if (headers.length > 0) options.header = headers;
-
-  return {
-    jsonrpc: "2.0",
-    id: "aria-ng-integration",
-    method: "aria2.addUri",
-    params: [[url], options],
-  };
+  return options;
 }
 
 function closeRpcSocket() {
@@ -276,10 +298,14 @@ function closeRpcSocket() {
 }
 
 function scheduleRpcReconnect() {
-  if (rpcReconnectTimer || !currentSettings.enabled || !currentRpcSettings)
-    return;
+  if (rpcReconnectTimer || !currentSettings.enabled) return;
   rpcReconnectTimer = setTimeout(() => {
     rpcReconnectTimer = null;
+    // Re-read AriaNg settings from localStorage in case the user
+    // reconfigured RPC host/port/secret since the last connection
+    currentRpcSettings = null;
+    readAriaNgRpcSettings();
+    if (!currentRpcSettings) return; // still no settings, will retry on next poll
     ensureRpcSocket().catch(() => {});
   }, 1000);
 }
@@ -321,19 +347,40 @@ function handleRpcMessage(event) {
     const item = trackedDownloads.get(gid);
     trackedDownloads.delete(gid);
 
-    // Instantly refresh the badge count state layout when a job wraps up
-    updateDownloadBadge();
-
     if (message.method === "aria2.onDownloadComplete") {
+      // Cache completed download stats so the popup can show the result
+      lastCompletedDownload = {
+        gid: gid,
+        fileName: item.fileName,
+        downloadSpeed: 0,
+        completedLength: 0,
+        totalLength: 0,
+        activeCount: 0,
+        status: "complete",
+      };
       notify("Download complete", item.fileName);
     } else if (message.method === "aria2.onDownloadError") {
+      lastCompletedDownload = {
+        gid: gid,
+        fileName: item.fileName,
+        downloadSpeed: 0,
+        completedLength: 0,
+        totalLength: 0,
+        activeCount: 0,
+        status: "error",
+      };
       notify(
         "Download failed",
         item.fileName + (data.errorCode ? " - " + data.errorCode : ""),
       );
     } else {
+      lastCompletedDownload = null;
       notify("Download stopped", item.fileName);
     }
+
+    // Refresh badge — updateDownloadBadge will pick up lastCompletedDownload
+    // if no active tasks remain
+    updateDownloadBadge();
   }
 }
 
@@ -403,27 +450,80 @@ function rpcCall(method, params) {
 
 /**
  * Queries the active aria2c instance and updates the badge count overlay.
+ * Also caches the latest download stats for the popup.
  */
 async function updateDownloadBadge() {
   if (!currentSettings || !currentSettings.enabled) {
     browser.browserAction.setBadgeText({ text: "" });
+    lastDownloadStats = null;
+    updateIcon("off");
     return;
   }
+  // If we don't have RPC settings yet, try reading them before attempting a call
+  if (!currentRpcSettings) {
+    readAriaNgRpcSettings();
+    if (!currentRpcSettings) {
+      // Still no settings — show error state but don't spam RPC attempts
+      browser.browserAction.setBadgeText({ text: "" });
+      lastDownloadStats = null;
+      extensionError = true;
+      updateIcon("error");
+      return;
+    }
+  }
   try {
-    // Optimization: request only 'gid' tokens to keep payload small
-    const activeTasks = await rpcCall("aria2.tellActive", [["gid"]]);
+    const activeTasks = await rpcCall("aria2.tellActive", [
+      ["gid", "downloadSpeed", "completedLength", "totalLength", "status"],
+    ]);
     if (Array.isArray(activeTasks) && activeTasks.length > 0) {
       const count = activeTasks.length;
       browser.browserAction.setBadgeText({
         text: count > 99 ? "99+" : String(count),
       });
       browser.browserAction.setBadgeBackgroundColor({ color: "#E74C3C" });
+      extensionError = false;
+
+      // Cache stats for the popup — pick the first active (downloading) task
+      const downloading =
+        activeTasks.find((t) => t.status === "active") || activeTasks[0];
+      const tracked = trackedDownloads.get(downloading.gid);
+      lastDownloadStats = {
+        gid: downloading.gid,
+        fileName: tracked ? tracked.fileName : "",
+        downloadSpeed: parseInt(downloading.downloadSpeed, 10) || 0,
+        completedLength: parseInt(downloading.completedLength, 10) || 0,
+        totalLength: parseInt(downloading.totalLength, 10) || 0,
+        activeCount: count,
+        status: "downloading",
+      };
+      updateIcon("active");
     } else {
       browser.browserAction.setBadgeText({ text: "" });
+      extensionError = false;
+      // Keep last completed download visible; clear active stats
+      if (lastCompletedDownload) {
+        lastDownloadStats = lastCompletedDownload;
+      } else {
+        lastDownloadStats = null;
+      }
+      updateIcon("idle");
     }
   } catch (error) {
     console.debug("Aria2c RPC unreachable during badge sync loop.");
     browser.browserAction.setBadgeText({ text: "" });
+    lastDownloadStats = null;
+    // Re-read AriaNg settings — the user may have just configured them
+    readAriaNgRpcSettings();
+    if (!currentRpcSettings) {
+      // Still no valid settings; show error and wait for next poll
+      extensionError = true;
+      updateIcon("error");
+    } else {
+      // Settings exist now; close stale socket and reconnect
+      extensionError = false;
+      closeRpcSocket();
+      scheduleRpcReconnect();
+    }
   }
 }
 
@@ -440,6 +540,7 @@ function toggleBadgePolling(shouldPoll) {
     badgeIntervalId = setInterval(updateDownloadBadge, 3000);
   } else {
     browser.browserAction.setBadgeText({ text: "" });
+    updateIcon("off");
   }
 }
 
@@ -450,11 +551,11 @@ function sendToAria2(details) {
 
   const fileName = fileNameFromResponse(details);
   const headers = requestHeadersForAria2(requestHeaders);
-  const payload = buildPayload(details.url, fileName, headers);
+  const options = buildAria2Options(fileName, headers);
 
   notify("Downloading " + fileName, "URL: " + details.url);
 
-  return rpcCall("aria2.addUri", payload.params)
+  return rpcCall("aria2.addUri", [[details.url], options])
     .then((gid) => {
       const resultGid = String(gid || "");
       if (resultGid) {
@@ -624,46 +725,71 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
     });
 });
 
-browser.runtime.onInstalled.addListener((details) => {
-  if (details.reason === "install") {
-    browser.storage.local.get(DEFAULT_SETTINGS).then((stored) => {
-      if (!stored.initialize) {
-        browser.storage.local.set({
-          ...DEFAULT_SETTINGS,
-          initialize: false,
-          enabled: false,
-        });
-      }
-    });
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "getDownloadStats") {
+    sendResponse(lastDownloadStats);
+    return true;
   }
-
-  browser.storage.local
-    .get({ enabled: false, contextMenu: false })
-    .then((stored) => {
-      updateMenuState(stored.enabled, stored.contextMenu);
-    });
+  if (message.type === "clearCompletedDownload") {
+    lastCompletedDownload = null;
+    lastDownloadStats = null;
+    sendResponse(true);
+    return true;
+  }
 });
 
-// Reactive Storage Change Interceptor Engine
-browser.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") return;
-
-  if (changes.enabled) {
-    const isNowEnabled = changes.enabled.newValue;
-    updateMenuState(isNowEnabled, currentSettings.contextMenu);
-    toggleBadgePolling(isNowEnabled);
+browser.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    browser.storage.local.set(DEFAULT_SETTINGS);
   }
-  if (changes.contextMenu) {
-    const isNowContextMenu = changes.contextMenu.newValue;
-    updateMenuState(currentSettings.enabled, isNowContextMenu);
-  }
+});
 
+/**
+ * Handles changes to the enabled setting.
+ * Starts/stops badge polling and closes the socket when disabled.
+ */
+function handleEnabledChange(enabled) {
+  if (enabled) {
+    toggleBadgePolling(true);
+  } else {
+    toggleBadgePolling(false);
+    closeRpcSocket();
+  }
+}
+
+/**
+ * Handles changes to AriaNg RPC options.
+ * Resets the cached RPC settings and closes the stale socket.
+ */
+function handleOptionsChange() {
+  currentRpcSettings = null;
+  closeRpcSocket();
+}
+
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  // Merge changes into the current settings cache for accurate state reflection Immediately.
   for (const [key, change] of Object.entries(changes)) {
-    currentSettings[key] = change.newValue;
-    if (key === "Options") {
-      currentRpcSettings = null;
-      closeRpcSocket();
+    if (currentSettings && key in currentSettings) {
+      currentSettings[key] = change.newValue;
     }
+  }
+
+  const needsOptionsReset = changes.hasOwnProperty("Options");
+  const needsEnabledHandler = changes.hasOwnProperty("enabled");
+  const needsMenuUpdate =
+    changes.hasOwnProperty("enabled") || changes.hasOwnProperty("contextMenu");
+
+  if (needsOptionsReset) {
+    handleOptionsChange();
+  }
+
+  if (needsEnabledHandler) {
+    handleEnabledChange(currentSettings.enabled);
+  }
+
+  if (needsMenuUpdate) {
+    updateMenuState(currentSettings.enabled, currentSettings.contextMenu);
   }
   applyListeners();
 });
